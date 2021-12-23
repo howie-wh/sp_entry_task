@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  mysqldb:
+    image: mysql:8.0.26
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+    ports:
+      - "3309:3306"
+
+  redisdb:
+    image: redis:6.2.5
+    ports:
+      - "6380:6379"
+  web:
+    image: golang:1.17
+    command: go run activity/main.go
+    volumes:
+      - .:/work
+    ports:
+      - "8001:8001"
+    working_dir: /work
+
+  admin-web:
+    image: golang:1.17
+    command: go run admin/main.go
+    volumes:
+      - .:/work
+    ports:
+      - "8002:8002"
+    working_dir: /work
+
+  login-ab:
+    image: httpd:2.4
+    command: ab -n 2000 -c 200 -p "/work/tmp/user_login.json" -H "Content-Type:application/json" 'http://host.docker.internal:8001/api/entry_task/v1/activity/login/' >> /work/login.txt
+    volumes:
+      - .:/work
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 200000
+        hard: 400000
+    sysctls:
+      - net.core.somaxconn=65535
+      - net.ipv4.ip_local_port_range=1024 65000
+
+  query-ab:
+    image: httpd:2.4
+    command: ab -n 5000 -c 200 -p "/work/tmp/activity_query.json" -H "Content-Type:application/json" 'http://host.docker.internal:8001/api/entry_task/v1/activity/activity_list' >> /work/activity_list.txt
+    volumes:
+      - .:/work
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 200000
+        hard: 400000
+    sysctls:
+      - net.core.somaxconn=65535
+      - net.ipv4.ip_local_port_range=1024 65000
